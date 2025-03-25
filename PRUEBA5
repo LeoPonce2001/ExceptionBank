@@ -110,7 +110,7 @@ def on_aplicativo_selected(event):
         for perfil in combo_aplicativos.racf_profiles:
             entry_palabra.insert(tk.END, perfil)  # Insertar perfiles de RACF
         btn_buscar.config(state=tk.NORMAL)  # Habilitar el botón "Buscar"
-        btn_generar_reporte.config(state=tk.NORMAL) # Habilitar el boton "Generar Reporte"
+        #btn_generar_reporte.config(state=tk.NORMAL) # Habilitar el boton "Generar Reporte"
         btn_buscar_aplicativo.config(state=tk.DISABLED)  # Deshabilitar el botón "Buscar por Aplicativo"
         btn_generar_reporte_aplicativo.config(state=tk.DISABLED) # Deshabilitar el boton "Generar Reporte por Aplicativo"
     else:
@@ -292,8 +292,8 @@ def guardar_en_excel_aplicativo():
     ws = wb.active
     ws.title = f"{aplicativo_buscado}"
 
-    # Crear encabezados
-    ws.cell(row=1, column=1).value = "Rol"
+    # Crear encabezado modificado
+    ws.cell(row=1, column=1).value = f"ROL en {aplicativo_buscado}"
 
     # Preparar datos para escribir en Excel
     datos_para_excel = []
@@ -320,7 +320,6 @@ def guardar_en_excel_aplicativo():
     # Guardar el archivo
     wb.save(nombre_archivo)
     messagebox.showinfo("Éxito", f"El reporte ha sido guardado como '{nombre_archivo}'.")
-
 
 cargar_aplicativos_y_perfiles()
 
