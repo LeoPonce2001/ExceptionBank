@@ -285,7 +285,6 @@ def buscar_datos_aplicativo_distinto_de_racf():
     except Exception as e:
         messagebox.showerror("Error", f"Ocurrió un error al buscar datos: {e}")
 
-
 def guardar_en_excel_aplicativo():
     """Función para guardar los resultados filtrados por aplicativo en un archivo Excel, con códigos en columnas separadas."""
     aplicativo_buscado = combo_aplicativos.get()
@@ -304,11 +303,13 @@ def guardar_en_excel_aplicativo():
     # Preparar datos para escribir en Excel
     datos_para_excel = []
     max_codigos = 0  # Para determinar el número máximo de columnas necesarias
+    todos_los_codigos = set()  # Para almacenar todos los códigos únicos
 
     for rol, codigos in resultados_por_rol.items():
         datos_fila = [rol] + sorted(codigos)
         datos_para_excel.append(datos_fila)
         max_codigos = max(max_codigos, len(codigos))
+        todos_los_codigos.update(codigos)
 
     # Crear encabezados de códigos de cargo
     for i in range(1, max_codigos + 1):
@@ -319,6 +320,14 @@ def guardar_en_excel_aplicativo():
         for col_index, valor in enumerate(datos_fila):
             ws.cell(row=fila_index + 2, column=col_index + 1).value = valor
 
+    # Añadir dos filas en blanco
+    fila_actual = len(datos_para_excel) + 4  # Añadir 4 para 2 filas de separación
+
+    # Escribir el resumen de códigos únicos
+    ws.cell(row=fila_actual, column=1).value = f"Aplicativo {aplicativo_buscado}:"
+    for col_index, codigo in enumerate(sorted(todos_los_codigos), start=2):
+        ws.cell(row=fila_actual, column=col_index).value = codigo
+
     # Crear el nombre del archivo
     fecha_actual = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     nombre_archivo = f"{aplicativo_buscado}_{fecha_actual}.xlsx"
@@ -326,7 +335,6 @@ def guardar_en_excel_aplicativo():
     # Guardar el archivo
     wb.save(nombre_archivo)
     messagebox.showinfo("Éxito", f"El reporte ha sido guardado como '{nombre_archivo}'.")
-
 cargar_aplicativos_y_perfiles()
 
 frame_resultado = tk.Frame(root)
