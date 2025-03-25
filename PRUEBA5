@@ -10,7 +10,6 @@ resultados_por_rol = {}
 aplicativos = []
 perfiles = []
 nombre_archivo = "Catálogo de roles_10_02_2025.xlsx"
-sheet = None  # Declarar sheet como global
 
 # Crear la ventana principal
 root = tk.Tk()
@@ -28,153 +27,157 @@ tk.Label(root, text="Perfil(es) a buscar:").pack()
 entry_palabra = tk.Listbox(root, selectmode=tk.MULTIPLE, height=10)  # Listbox para selección múltiple
 entry_palabra.pack(fill="x", padx=10, pady=5)
 
-def guardar_en_excel(flujo, perfiles_seleccionados=None):
+def guardar_en_excel():
     """Función para guardar los resultados en un archivo Excel."""
+    perfiles_seleccionados = [entry_palabra.get(i) for i in entry_palabra.curselection()]
     aplicativo_buscado = combo_aplicativos.get()
+
+    if not perfiles_seleccionados:
+        messagebox.showerror("Error", "Debe seleccionar al menos un perfil.")
+        return
+
     wb = Workbook()
-    ws = wb.active
-    ws.title = "Resultados"
+    ws_codigos_unicos = wb.active
+    ws_codigos_unicos.title = "Códigos Unificados"
 
-    fila_actual = 1  # Fila inicial
+    # Crear encabezado inicial para los códigos unificados
+    ws_codigos_unicos.cell(row=1, column=1).value = "Perfil"
+    ws_codigos_unicos.cell(row=1, column=2).value = "Códigos Unificados"
 
-    if flujo == "normal":
-        # Encabezados para búsqueda normal
-        ws.cell(row=fila_actual, column=1).value = "Perfil"
-        ws.cell(row=fila_actual, column=2).value = "Rol"
-        ws.cell(row=fila_actual, column=3).value = "Códigos Cargos"
-        fila_actual += 1
+    fila_actual_unificados = 2  # Fila inicial para códigos unificados por perfil
+    codigos_unicos_totales = set()  # Acumulará los códigos globales totales
 
-        for perfil in perfiles_seleccionados:
-            if perfil in resultados_por_rol:
-                for rol, codigos in resultados_por_rol[perfil].items():
-                    ws.cell(row=fila_actual, column=1).value = perfil
-                    ws.cell(row=fila_actual, column=2).value = rol
-                    ws.cell(row=fila_actual, column=3).value = ', '.join(codigos)
-                    fila_actual += 1
+    # Procesar cada perfil seleccionado
+    for perfil in perfiles_seleccionados:
+        codigos_unicos_perfil = set()  # Códigos unificados únicamente para este perfil
 
-    elif flujo == "aplicacion":
-        # Encabezados para búsqueda por aplicativo
-        ws.cell(row=fila_actual, column=1).value = "Rol en Nombre Aplicativo"
-        fila_actual += 1
+        if perfil in resultados_por_rol:
+            ws_perfil = wb.create_sheet(title=f"Perfil_{perfil}")
 
-        # Recopilar todos los códigos de cargo únicos por rol
-        codigos_por_rol = {}
-        
-        for rol, codigos in resultados_por_rol.items():
-            codigos_unicos = list(set(codigos))  # Eliminar duplicados
-            codigos_por_rol[rol] = codigos_unicos
+            # Escribir encabezados
+            encabezados = ["Rol"]
+            max_codigos = max(len(codigos) for codigos in resultados_por_rol[perfil].values())
+            for i in range(1, max_codigos + 1):
+                encabezados.append(f"Código Cargo {i}")
+            ws_perfil.append(encabezados)
 
-        # Generar encabezados para los códigos de cargo
-        max_codigos = max(len(codigos) for codigos in codigos_por_rol.values())
-        for i in range(max_codigos):
-            ws.cell(row=1, column=i + 2).value = f"Código Cargo {i + 1}"  # Encabezados de códigos de cargo
+            # Escribir datos en la hoja del perfil
+            for rol, codigos in resultados_por_rol[perfil].items():
+                fila = [rol] + codigos + [""] * (max_codigos - len(codigos))  # Agregar códigos hacia la derecha
+                ws_perfil.append(fila)
 
-        # Agregar los datos
-        for rol, codigos in codigos_por_rol.items():
-            ws.cell(row=fila_actual, column=1).value = rol
-            for i, codigo in enumerate(codigos):
-                ws.cell(row=fila_actual, column=i + 2).value = codigo  # Colocar códigos de cargo en columnas adyacentes
-            fila_actual += 1
+                # Acumular códigos unificados para este perfil
+                codigos_unicos_perfil.update(codigos)
 
-    # Crear el nombre del archivo
+        # Escribir en la hoja de códigos unificados
+        ws_codigos_unicos.cell(row=fila_actual_unificados, column=1).value = perfil
+        for col_index, codigo in enumerate(sorted(codigos_unicos_perfil), start=2):
+            ws_codigos_unicos.cell(row=fila_actual_unificados, column=col_index).value = codigo
+
+        # Actualizar el conjunto global de códigos únicos totales
+        codigos_unicos_totales.update(codigos_unicos_perfil)
+
+        # Mover a la siguiente fila para el próximo perfil
+        fila_actual_unificados += 1
+
+    # Añadir dos filas en blanco antes de los códigos globales totales
+    fila_actual_unificados += 2
+
+    # Escribir los códigos globales unificados
+    ws_codigos_unicos.cell(row=fila_actual_unificados, column=1).value = "Total Unificado"
+    for col_index, codigo in enumerate(sorted(codigos_unicos_totales), start=2):
+        ws_codigos_unicos.cell(row=fila_actual_unificados, column=col_index).value = codigo
+
+    # Crear el nombre del archivo dependiendo del aplicativo
     fecha_actual = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    nombre_archivo = f"{aplicativo_buscado}_{fecha_actual}.xlsx"
-    
+    if aplicativo_buscado.upper() == "RACF":
+        nombre_archivo = f"RACF_{len(perfiles_seleccionados)}_perfiles_{fecha_actual}.xlsx"
+    else:
+        nombre_archivo = f"EXCEPCION_{aplicativo_buscado}_{'_'.join(perfiles_seleccionados)}_{fecha_actual}.xlsx"
+
     # Guardar el archivo
     wb.save(nombre_archivo)
     messagebox.showinfo("Éxito", f"El reporte ha sido guardado como '{nombre_archivo}'.")
+
 def on_aplicativo_selected(event):
     """Actualizar el Listbox de perfiles al seleccionar un aplicativo."""
-    aplicativo_seleccionado = combo_aplicativos.get()
+    aplicativo_seleccionado = combo_aplicativos.get()  # Obtener el aplicativo seleccionado
 
-    entry_palabra.delete(0, tk.END)  # Limpiar el Listbox de perfiles
+    entry_palabra.delete(0, tk.END)  # Limpiar el Listbox de perfiles siempre
 
     if aplicativo_seleccionado.upper() == "RACF":
+        # Mostrar solo los perfiles asociados con RACF
         for perfil in combo_aplicativos.racf_profiles:
             entry_palabra.insert(tk.END, perfil)  # Insertar perfiles de RACF
-        entry_palabra.config(state=tk.NORMAL)  # Habilitar el Listbox
-        entry_palabra.config(height=10)  # Altura normal del Listbox
+        btn_buscar.config(state=tk.NORMAL)  # Habilitar el botón "Buscar"
+        btn_generar_reporte.config(state=tk.NORMAL) # Habilitar el boton "Generar Reporte"
+        btn_buscar_aplicativo.config(state=tk.DISABLED)  # Deshabilitar el botón "Buscar por Aplicativo"
+        btn_generar_reporte_aplicativo.config(state=tk.DISABLED) # Deshabilitar el boton "Generar Reporte por Aplicativo"
     else:
-        entry_palabra.insert(tk.END, "Buscar solo por perfil, diferente a RACF")
-        entry_palabra.config(state=tk.DISABLED)  # Deshabilitar el Listbox
-        entry_palabra.config(height=1)  # Altura mínima del Listbox
+        btn_buscar.config(state=tk.DISABLED)  # Deshabilitar el botón "Buscar"
+        btn_generar_reporte.config(state=tk.DISABLED) # Deshabilitar el boton "Generar Reporte"
+        btn_buscar_aplicativo.config(state=tk.NORMAL)  # Habilitar el botón "Buscar por Aplicativo"
+
+
 
 combo_aplicativos.bind("<<ComboboxSelected>>", on_aplicativo_selected)
+
+
+def cargar_aplicativos_y_perfiles():
+    try:
+        workbook = load_workbook(filename=nombre_archivo)
+        sheet = workbook.worksheets[0]
+        max_row = sheet.max_row
+
+        global aplicativos, perfiles
+        aplicativos = set()
+        perfiles = set()
+        perfiles_racf = set()
+
+        for i in range(2, max_row + 1):
+            if sheet[f"E{i}"].value:
+                palabras_aplicativo = [palabra.strip() for palabra in re.split(r'[;, ]+', sheet[f"E{i}"].value)]
+                aplicativos.update(palabras_aplicativo)
+
+            if sheet[f"G{i}"].value:
+                palabras_perfil = [palabra.strip() for palabra in re.split(r'[;,]+', sheet[f"G{i}"].value)]
+                perfiles.update(palabras_perfil)
+
+                # Relacionar perfiles con RACF
+                if "RACF" in re.split(r'[;, ]+', str(sheet[f"E{i}"].value or "").strip()):
+                    perfiles_racf.update(palabras_perfil)
+
+        # Configurar los Combobox con aplicativos y perfiles relacionados
+        combo_aplicativos['values'] = sorted(aplicativos)
+        combo_aplicativos.racf_profiles = sorted(perfiles_racf)  # Guardar perfiles de RACF
+
+        # No establecer valores predeterminados en los Combobox ni en el Listbox
+        # combo_aplicativos.set('')  # No establecer valor predeterminado para el Combobox de aplicativos
+        # entry_palabra.delete(0, tk.END)  # No limpiar el Listbox de perfiles aquí
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Ocurrió un error al cargar datos: {e}")
 
 def buscar_datos():
     global resultados_por_rol
     perfiles_seleccionados = [entry_palabra.get(i) for i in entry_palabra.curselection()]
     aplicativo_buscado = combo_aplicativos.get()
 
-    if aplicativo_buscado.upper() == "RACF" and perfiles_seleccionados:
-        buscar_datos_normales(aplicativo_buscado, perfiles_seleccionados)
-    else:
-        messagebox.showerror("Error", "La búsqueda para RACF debe tener perfiles seleccionados.")
-
-def buscar_por_aplicativo():
-    global resultados_por_rol
-    aplicativo_buscado = combo_aplicativos.get()
-
-    if aplicativo_buscado.upper() != "RACF":
-        buscar_roles_sin_perfiles(aplicativo_buscado)
-    else:
-        messagebox.showerror("Error", "No se puede buscar por aplicativo si es RACF.")
-
-def buscar_roles_sin_perfiles(aplicativo_buscado):
-    global resultados_por_rol
-    resultados_por_rol.clear()
+    if not perfiles_seleccionados or not aplicativo_buscado:
+        messagebox.showerror("Error", "Debe seleccionar un aplicativo y uno o más perfiles.")
+        return
 
     try:
         workbook = load_workbook(filename=nombre_archivo)
         sheet = workbook.worksheets[0]
-        col_rol = "B"
-        col_aplicacion = "E"
-        col_codigo_cargo = "J"
-        max_row = sheet.max_row
 
-        roles_encontrados = set()
-
-        for i in range(2, max_row + 1):
-            aplicativo_actual = str(sheet[f"{col_aplicacion}{i}"].value or "").strip()
-            if aplicativo_buscado.lower().strip() == aplicativo_actual.lower().strip():
-                rol = str(sheet[f"{col_rol}{i}"].value or "").strip()
-                codigo_cargo = sheet[f"{col_codigo_cargo}{i}"].value
-                if rol:
-                    roles_encontrados.add(rol)
-                    if rol not in resultados_por_rol:
-                        resultados_por_rol[rol] = set()
-                    resultados_por_rol[rol].add(str(codigo_cargo or "").strip())
-
-        resultado_text.config(state=tk.NORMAL)
-        resultado_text.delete("1.0", tk.END)
-
-        if resultados_por_rol:
-            for rol in resultados_por_rol:
-                resultado_text.insert(tk.END, f"Rol: {rol}\nCódigos de Cargo: {', '.join(map(str, resultados_por_rol[rol]))}\n\n")
-            btn_generar_reporte.config(state=tk.NORMAL)
-            btn_generar_archivo_aplicacion.config(state=tk.NORMAL)  # Habilitar botón para archivo aplicación
-        else:
-            resultado_text.insert(tk.END, "No se encontraron resultados.")
-            btn_generar_reporte.config(state=tk.DISABLED)
-            btn_generar_archivo_aplicacion.config(state=tk.DISABLED)  # Deshabilitar botón si no hay resultados
-
-        resultado_text.config(state=tk.DISABLED)
-
-    except Exception as e:
-        messagebox.showerror("Error", f"Ocurrió un error al buscar datos: {e}")
-
-def buscar_datos_normales(aplicativo_buscado, perfiles_seleccionados):
-    global resultados_por_rol
-    resultados_por_rol.clear()
-
-    try:
-        workbook = load_workbook(filename=nombre_archivo)
-        sheet = workbook.worksheets[0]
         col_rol = "B"
         col_aplicacion = "E"
         col_perfil = "G"
         col_codigo_cargo = "J"
         max_row = sheet.max_row
+
+        resultados_por_rol.clear()
 
         for perfil_seleccionado in perfiles_seleccionados:
             roles_encontrados = set()
@@ -215,49 +218,109 @@ def buscar_datos_normales(aplicativo_buscado, perfiles_seleccionados):
                 for rol, codigos in resultados_por_rol[perfil].items():
                     resultado_text.insert(tk.END, f"Rol: {rol}\nCódigos de Cargo: {', '.join(map(str, codigos))}\n\n")
             btn_generar_reporte.config(state=tk.NORMAL)
-            btn_generar_archivo_aplicacion.config(state=tk.DISABLED)  # Deshabilitar botón para archivo aplicación
         else:
             resultado_text.insert(tk.END, "No se encontraron resultados.")
             btn_generar_reporte.config(state=tk.DISABLED)
-            btn_generar_archivo_aplicacion.config(state=tk.DISABLED)  # Deshabilitar botón si no hay resultados
+
+        resultado_text.config(state=tk.DISABLED)
+
+    except Exception as e:
+        messagebox.showerror("Error", f"Ocurrió un error al buscar datos: {e}")
+def buscar_datos_aplicativo_distinto_de_racf():
+    """Buscar datos filtrados por un aplicativo distinto de RACF sin necesidad de seleccionar un perfil."""
+    aplicativo_buscado = combo_aplicativos.get()
+
+    if aplicativo_buscado.upper() == "RACF":
+        messagebox.showerror("Error", "Debe seleccionar un aplicativo diferente a 'RACF'.")
+        return
+
+    try:
+        workbook = load_workbook(filename=nombre_archivo)
+        sheet = workbook.worksheets[0]
+
+        col_rol = "B"
+        col_aplicacion = "E"
+        col_codigo_cargo = "J"
+        max_row = sheet.max_row
+
+        resultados_por_rol.clear()
+
+        roles_encontrados = set()
+
+        for i in range(2, max_row + 1):
+            aplicativo_actual = str(sheet[f"{col_aplicacion}{i}"].value or "").strip()
+
+            if aplicativo_buscado.lower().strip() == aplicativo_actual.lower().strip():
+                rol = str(sheet[f"{col_rol}{i}"].value or "").strip()
+                codigo_cargo = sheet[f"{col_codigo_cargo}{i}"].value
+
+                if rol:
+                    roles_encontrados.add((rol, str(codigo_cargo or "").strip()))
+
+        # Organizar resultados por rol
+        for rol, codigo in roles_encontrados:
+            if rol not in resultados_por_rol:
+                resultados_por_rol[rol] = set()
+            resultados_por_rol[rol].add(codigo)
+
+        # Actualiza el resultado en el texto
+        resultado_text.config(state=tk.NORMAL)
+        resultado_text.delete("1.0", tk.END)
+
+        if resultados_por_rol:
+            for rol, codigos in resultados_por_rol.items():
+                resultado_text.insert(tk.END, f"Rol: {rol}\nCódigos de Cargo: {', '.join(sorted(codigos))}\n\n")
+            btn_generar_reporte_aplicativo.config(state=tk.NORMAL)  # Activar el botón
+        else:
+            resultado_text.insert(tk.END, "No se encontraron resultados.")
+            btn_generar_reporte_aplicativo.config(state=tk.DISABLED)  # Desactivar el botón
 
         resultado_text.config(state=tk.DISABLED)
 
     except Exception as e:
         messagebox.showerror("Error", f"Ocurrió un error al buscar datos: {e}")
 
-# Cargar aplicativos y perfiles al iniciar
-def cargar_aplicativos_y_perfiles():
-    global sheet  # Hacer sheet global
-    try:
-        workbook = load_workbook(filename=nombre_archivo)
-        sheet = workbook.worksheets[0]  # Inicializar sheet
-        max_row = sheet.max_row
+def guardar_en_excel_aplicativo():
+    """Función para guardar los resultados filtrados por aplicativo en un archivo Excel, con códigos en columnas separadas."""
+    aplicativo_buscado = combo_aplicativos.get()
 
-        global aplicativos, perfiles
-        aplicativos = set()
-        perfiles = set()
-        perfiles_racf = set()
+    if aplicativo_buscado.upper() == "RACF":
+        messagebox.showerror("Error", "Debe seleccionar un aplicativo diferente a 'RACF'.")
+        return
 
-        for i in range(2, max_row + 1):
-            if sheet[f"E{i}"].value:
-                palabras_aplicativo = [palabra.strip() for palabra in re.split(r'[;, ]+', sheet[f"E{i}"].value)]
-                aplicativos.update(palabras_aplicativo)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f"{aplicativo_buscado}"
 
-            if sheet[f"G{i}"].value:
-                palabras_perfil = [palabra.strip() for palabra in re.split(r'[;,]+', sheet[f"G{i}"].value)]
-                perfiles.update(palabras_perfil)
+    # Crear encabezados
+    ws.cell(row=1, column=1).value = "Rol"
 
-                # Relacionar perfiles con RACF
-                if "RACF" in re.split(r'[;, ]+', str(sheet[f"E{i}"].value or "").strip()):
-                    perfiles_racf.update(palabras_perfil)
+    # Preparar datos para escribir en Excel
+    datos_para_excel = []
+    max_codigos = 0  # Para determinar el número máximo de columnas necesarias
 
-        # Configurar los Combobox con aplicativos y perfiles relacionados
-        combo_aplicativos['values'] = sorted(aplicativos)
-        combo_aplicativos.racf_profiles = sorted(perfiles_racf)  # Guardar perfiles de RACF
+    for rol, codigos in resultados_por_rol.items():
+        datos_fila = [rol] + sorted(codigos)
+        datos_para_excel.append(datos_fila)
+        max_codigos = max(max_codigos, len(codigos))
 
-    except Exception as e:
-        messagebox.showerror("Error", f"Ocurrió un error al cargar datos: {e}")
+    # Crear encabezados de códigos de cargo
+    for i in range(1, max_codigos + 1):
+        ws.cell(row=1, column=i + 1).value = f"Código Cargo {i}"
+
+    # Escribir datos en Excel
+    for fila_index, datos_fila in enumerate(datos_para_excel):
+        for col_index, valor in enumerate(datos_fila):
+            ws.cell(row=fila_index + 2, column=col_index + 1).value = valor
+
+    # Crear el nombre del archivo
+    fecha_actual = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    nombre_archivo = f"{aplicativo_buscado}_{fecha_actual}.xlsx"
+
+    # Guardar el archivo
+    wb.save(nombre_archivo)
+    messagebox.showinfo("Éxito", f"El reporte ha sido guardado como '{nombre_archivo}'.")
+
 
 cargar_aplicativos_y_perfiles()
 
@@ -269,18 +332,19 @@ resultado_text.pack(fill="both", expand=True)
 resultado_text.config(state=tk.DISABLED, font=("Arial", 10))  # Fuente más pequeña
 
 # Botón para buscar
-tk.Button(root, text="Buscar", command=buscar_datos).pack(pady=5)
 
-# Botón para buscar solo por aplicativo
-tk.Button(root, text="Buscar por Aplicativo", command=buscar_por_aplicativo).pack(pady=5)
+# Crear un Frame para contener los botones
+frame_botones = tk.Frame(root)
+frame_botones.pack(pady=20) # Añadir espacio vertical
 
-# Botón para generar el reporte de RACF
-btn_generar_reporte = tk.Button(root, text="Generar Reporte RACF", command=lambda: guardar_en_excel("normal", [entry_palabra.get(i) for i in entry_palabra.curselection()]), state=tk.DISABLED)
-btn_generar_reporte.pack(pady=5)
-
-# Botón para generar el reporte de aplicación
-btn_generar_archivo_aplicacion = tk.Button(root, text="Archivo Aplicación", command=lambda: guardar_en_excel("aplicacion"), state=tk.DISABLED)
-btn_generar_archivo_aplicacion.pack(pady=5)
+btn_buscar = tk.Button(frame_botones, text="Buscar", command=buscar_datos, state=tk.DISABLED)  # Inicialmente deshabilitado
+btn_buscar.pack(side=tk.LEFT, padx=5, pady=2)
+btn_generar_reporte = tk.Button(frame_botones, text="Generar Reporte", command=guardar_en_excel, state=tk.DISABLED)
+btn_generar_reporte.pack(side=tk.LEFT, padx=5, pady=2)
+btn_buscar_aplicativo = tk.Button(frame_botones, text="Buscar por Aplicativo", command=buscar_datos_aplicativo_distinto_de_racf, state=tk.DISABLED)  # Inicialmente deshabilitado
+btn_buscar_aplicativo.pack(side=tk.LEFT, padx=5, pady=2)
+btn_generar_reporte_aplicativo = tk.Button(frame_botones, text="Generar Reporte por Aplicativo", command=guardar_en_excel_aplicativo, state=tk.DISABLED)  # Inicialmente deshabilitado
+btn_generar_reporte_aplicativo.pack(side=tk.LEFT, padx=5, pady=2)
 
 # Iniciar la ventana principal
 root.mainloop()
