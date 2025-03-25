@@ -228,7 +228,7 @@ def buscar_datos():
         messagebox.showerror("Error", f"Ocurrió un error al buscar datos: {e}")
 def buscar_datos_aplicativo_distinto_de_racf():
     """Buscar datos filtrados por un aplicativo distinto de RACF sin necesidad de seleccionar un perfil."""
-    aplicativo_buscado = combo_aplicativos.get()
+    aplicativo_buscado = combo_aplicativos.get().strip()
 
     if aplicativo_buscado.upper() == "RACF":
         messagebox.showerror("Error", "Debe seleccionar un aplicativo diferente a 'RACF'.")
@@ -238,47 +238,53 @@ def buscar_datos_aplicativo_distinto_de_racf():
         workbook = load_workbook(filename=nombre_archivo)
         sheet = workbook.worksheets[0]
 
-        col_rol = "B"
-        col_aplicacion = "E"
-        col_codigo_cargo = "J"
+        col_rol = "B"  # Columna donde están los roles
+        col_aplicacion = "E"  # Columna donde están los aplicativos
+        col_codigo_cargo = "J"  # Columna de códigos de cargo
         max_row = sheet.max_row
 
         resultados_por_rol.clear()
 
+        # Primera pasada: Identificar todos los roles asociados al aplicativo
         roles_encontrados = set()
 
         for i in range(2, max_row + 1):
             aplicativo_actual = str(sheet[f"{col_aplicacion}{i}"].value or "").strip()
 
-            if aplicativo_buscado.lower().strip() == aplicativo_actual.lower().strip():
+            if aplicativo_buscado.lower() == aplicativo_actual.lower():
                 rol = str(sheet[f"{col_rol}{i}"].value or "").strip()
-                codigo_cargo = sheet[f"{col_codigo_cargo}{i}"].value
-
                 if rol:
-                    roles_encontrados.add((rol, str(codigo_cargo or "").strip()))
+                    roles_encontrados.add(rol)
 
-        # Organizar resultados por rol
-        for rol, codigo in roles_encontrados:
-            if rol not in resultados_por_rol:
-                resultados_por_rol[rol] = set()
-            resultados_por_rol[rol].add(codigo)
+        # Segunda pasada: Recoger todos los códigos de cargo asociados a esos roles
+        for i in range(2, max_row + 1):
+            rol_actual = str(sheet[f"{col_rol}{i}"].value or "").strip()
+            codigo_cargo = str(sheet[f"{col_codigo_cargo}{i}"].value or "").strip()
 
-        # Actualiza el resultado en el texto
+            if rol_actual in roles_encontrados:
+                if rol_actual not in resultados_por_rol:
+                    resultados_por_rol[rol_actual] = set()
+                if codigo_cargo:
+                    resultados_por_rol[rol_actual].add(codigo_cargo)
+
+        # Mostrar resultados en la interfaz
         resultado_text.config(state=tk.NORMAL)
         resultado_text.delete("1.0", tk.END)
 
         if resultados_por_rol:
-            for rol, codigos in resultados_por_rol.items():
-                resultado_text.insert(tk.END, f"Rol: {rol}\nCódigos de Cargo: {', '.join(sorted(codigos))}\n\n")
-            btn_generar_reporte_aplicativo.config(state=tk.NORMAL)  # Activar el botón
+            for rol, codigos in sorted(resultados_por_rol.items()):
+                resultado_text.insert(tk.END, f"🔹 **Rol:** {rol}\n")
+                resultado_text.insert(tk.END, f"   ➜ **Códigos de Cargo:** {', '.join(sorted(codigos))}\n\n")
+            btn_generar_reporte_aplicativo.config(state=tk.NORMAL)  # Activar el botón de reporte
         else:
-            resultado_text.insert(tk.END, "No se encontraron resultados.")
+            resultado_text.insert(tk.END, "❌ No se encontraron resultados para el aplicativo seleccionado.")
             btn_generar_reporte_aplicativo.config(state=tk.DISABLED)  # Desactivar el botón
 
         resultado_text.config(state=tk.DISABLED)
 
     except Exception as e:
         messagebox.showerror("Error", f"Ocurrió un error al buscar datos: {e}")
+
 
 def guardar_en_excel_aplicativo():
     """Función para guardar los resultados filtrados por aplicativo en un archivo Excel, con códigos en columnas separadas."""
