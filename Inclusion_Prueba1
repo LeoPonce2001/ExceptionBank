@@ -1,0 +1,58 @@
+import pandas as pd
+import datetime
+
+def eliminar_duplicados_perfiles(perfiles):
+    lista_perfiles = perfiles.split(";")
+    perfiles_unicos = []
+    
+    for perfil in lista_perfiles:
+        if perfil not in perfiles_unicos:
+            perfiles_unicos.append(perfil)
+    
+    return ";".join(perfiles_unicos)
+
+def incluir_filas_en_archivo2(archivo1, archivo2, aplicativo_buscar):
+    df1 = pd.read_excel(archivo1, header=None)
+    df2 = pd.read_excel(archivo2, header=None)
+
+    filas_a_agregar = []
+
+    for rol_archivo1, perfil_archivo1 in zip(df1[0], df1[1]):
+        filas_rol_archivo2 = df2[df2[1] == rol_archivo1]
+
+        if not filas_rol_archivo2.empty:
+            aplicativos_existentes = filas_rol_archivo2[4].str.contains(
+                aplicativo_buscar, case=False, na=False
+            ).any()
+
+            if not aplicativos_existentes:
+                fila_base = filas_rol_archivo2.iloc[0].to_dict()
+
+                # Eliminar duplicados del perfil
+                perfil_unico = eliminar_duplicados_perfiles(perfil_archivo1)
+
+                nueva_fila = {
+                    1: fila_base[1],
+                    4: aplicativo_buscar,
+                    6: perfil_unico,  # Usar el perfil sin duplicados
+                }
+
+                for columna_index in [0, 2, 3, 5, 7, 8, 9, 10]:
+                    nueva_fila[columna_index] = fila_base.get(columna_index, None)
+
+                filas_a_agregar.append(nueva_fila)
+
+    df_resultado = pd.concat([df2, pd.DataFrame(filas_a_agregar)], ignore_index=True)
+
+    ahora = datetime.datetime.now()
+    nombre_archivo_salida = f"{archivo2.split('.')[0]}_{ahora.strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+    df_resultado.to_excel(nombre_archivo_salida, index=False)
+    print(f"Archivo de salida guardado como: {nombre_archivo_salida}")
+
+if __name__ == "__main__":
+    archivo_con_rol_y_perfil = "Archivo1.xlsx"  # Nombre del archivo real: Archivo1.xlsx
+    catalogo_de_rol_sin_inclusion = "Archivo2.xlsx"  # Nombre del archivo real: Archivo2.xlsx
+    aplicativo_buscar = "Active-Directory-Databricks" # Nombre a aplicativo a buscar
+
+    incluir_filas_en_archivo2(archivo_con_rol_y_perfil, catalogo_de_rol_sin_inclusion, aplicativo_buscar)
