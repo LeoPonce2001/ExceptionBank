@@ -1,0 +1,69 @@
+import pandas as pd
+import datetime
+
+def eliminar_duplicados_perfiles(perfiles):
+    lista_perfiles = perfiles.split(";")
+    perfiles_unicos = []
+    
+    for perfil in lista_perfiles:
+        if perfil not in perfiles_unicos:
+            perfiles_unicos.append(perfil)
+    
+    return ";".join(perfiles_unicos)
+
+def incluir_filas_en_archivo2(archivo1, archivo2, aplicativo_buscar):
+    df1 = pd.read_excel(archivo1, header=None)
+    df2 = pd.read_excel(archivo2, header=None)
+
+    filas_a_agregar = []
+
+    for rol_archivo1, perfil_archivo1 in zip(df1[0], df1[1]):
+        filas_rol_archivo2 = df2[df2[1] == rol_archivo1]
+
+        if not filas_rol_archivo2.empty:
+            # Filtrar filas que tienen un aplicativo válido
+            filas_con_aplicativo = filas_rol_archivo2[filas_rol_archivo2[4].notna() & (filas_rol_archivo2[4].str.lower() != "none")]
+
+            # Verificar si hay filas con un aplicativo válido
+            fila_base = filas_con_aplicativo.iloc[0].to_dict() if not filas_con_aplicativo.empty else None
+            
+            # Verificar si el aplicativo buscado no existe en las filas del rol
+            aplicativos_existentes = filas_rol_archivo2[4].str.contains(aplicativo_buscar, case=False, na=False).any()
+
+            if not aplicativos_existentes:
+                if fila_base is not None:  # Asegurarse de que hay una fila base válida
+                    perfil_unico = eliminar_duplicados_perfiles(perfil_archivo1)
+
+                    nueva_fila = {
+                        1: fila_base[1],  # Copiar el rol
+                        4: aplicativo_buscar,  # Nuevo aplicativo
+                        6: perfil_unico,  # Usar el perfil sin duplicados
+                    }
+
+                    # Copiar columnas necesarias de la fila base
+                    for columna_index in [0, 2, 3, 5, 7, 8, 9, 10]:
+                        nueva_fila[columna_index] = fila_base.get(columna_index, None)
+
+                    filas_a_agregar.append(nueva_fila)
+                else:
+                    print(f"No se encontró una fila base válida para el rol '{rol_archivo1}'.")
+
+    # Concatenar las filas agregadas al DataFrame original
+    if filas_a_agregar:
+        df_resultado = pd.concat([df2, pd.DataFrame(filas_a_agregar)], ignore_index=True)
+
+        ahora = datetime.datetime.now()
+        nombre_archivo_salida = f"{archivo2.split('.')[0]}_{ahora.strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+        # Guardar el resultado en Excel
+        df_resultado.to_excel(nombre_archivo_salida, index=False)
+        print(f"Archivo de salida guardado como: {nombre_archivo_salida}")
+    else:
+        print("No se agregaron filas.")
+
+if __name__ == "__main__":
+    archivo_con_rol_y_perfil = "Archivo1.xlsx"  # Nombre del archivo que contiene en columna A rol y B los perfiles separados por ";"
+    catalogo_de_rol_sin_inclusion = "Archivo2.xlsx"  # Nombre del catalogo de roles, sin ninguna isertacion de filas.
+    aplicativo_buscar = "Active-Directory-Databricks"  # Nombre del aplicativo a buscar
+
+    incluir_filas_en_archivo2(archivo_con_rol_y_perfil, catalogo_de_rol_sin_inclusion, aplicativo_buscar)
