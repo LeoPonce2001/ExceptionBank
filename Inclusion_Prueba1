@@ -21,26 +21,28 @@ def incluir_filas_en_archivo2(archivo1, archivo2, aplicativo_buscar):
         filas_rol_archivo2 = df2[df2[1] == rol_archivo1]
 
         if not filas_rol_archivo2.empty:
-            aplicativos_existentes = filas_rol_archivo2[4].str.contains(
-                aplicativo_buscar, case=False, na=False
-            ).any()
+            fila_base = filas_rol_archivo2.iloc[0].to_dict()
 
-            if not aplicativos_existentes:
-                fila_base = filas_rol_archivo2.iloc[0].to_dict()
+            # Nueva condición: verificar que el aplicativo en fila_base no sea "NONE"
+            if fila_base.get(4, "").strip().lower() != "none":
+                aplicativos_existentes = filas_rol_archivo2[4].str.contains(
+                    aplicativo_buscar, case=False, na=False
+                ).any()
 
-                # Eliminar duplicados del perfil
-                perfil_unico = eliminar_duplicados_perfiles(perfil_archivo1)
+                if not aplicativos_existentes:
+                    # Eliminar duplicados del perfil
+                    perfil_unico = eliminar_duplicados_perfiles(perfil_archivo1)
 
-                nueva_fila = {
-                    1: fila_base[1],
-                    4: aplicativo_buscar,
-                    6: perfil_unico,  # Usar el perfil sin duplicados
-                }
+                    nueva_fila = {
+                        1: fila_base[1],
+                        4: aplicativo_buscar,
+                        6: perfil_unico,  # Usar el perfil sin duplicados
+                    }
 
-                for columna_index in [0, 2, 3, 5, 7, 8, 9, 10]:
-                    nueva_fila[columna_index] = fila_base.get(columna_index, None)
+                    for columna_index in [0, 2, 3, 5, 7, 8, 9, 10]:
+                        nueva_fila[columna_index] = fila_base.get(columna_index, None)
 
-                filas_a_agregar.append(nueva_fila)
+                    filas_a_agregar.append(nueva_fila)
 
     df_resultado = pd.concat([df2, pd.DataFrame(filas_a_agregar)], ignore_index=True)
 
